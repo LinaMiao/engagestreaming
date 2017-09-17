@@ -27,7 +27,7 @@ object EngageStreaming {
     val brokers = "ec2-54-213-76-65.us-west-2.compute.amazonaws.com:9092"
     val topics_1 = "comments_topic"
     val topicsSet_1 = topics_1.split(",").toSet
-    val topics_2 =  "dislike_topic"
+    val topics_2 =  "like_topic"
     val topicsSet_2 = topics_2.split(",").toSet
 
     // Create context with 2 second batch interval
@@ -81,7 +81,7 @@ object EngageStreaming {
         //output.collect().foreach( t => {r.set(t(0), t(1).toString())})
 
                             }
-      val messages_2 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_1)
+      val messages_2 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_2)
       val windowStream_2 = messages_2.window(Seconds(10), Seconds(10))
 
       windowStream_2.foreachRDD { rdd =>
