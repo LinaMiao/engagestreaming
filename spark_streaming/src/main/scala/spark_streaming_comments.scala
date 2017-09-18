@@ -29,19 +29,32 @@ object EngageStreaming {
     val topicsSet_1 = topics_1.split(",").toSet
     val topics_2 =  "like_topic"
     val topicsSet_2 = topics_2.split(",").toSet
+    val topics_3 = "dislike_topic"
+    val topicsSet_3 = topics_1.split(",").toSet
+    val topics_4 =  "video_topic"
+    val topicsSet_4 = topics_2.split(",").toSet
+    val topics_5 =  "watch_topic"
+    val topicsSet_5 = topics_2.split(",").toSet
 
-    // Create context with 2 second batch interval
+
+    // Create context with 10 second batch interval
     val sparkConf = new SparkConf().setAppName("engage")
-    sparkConf.set("spark.streaming.concurrentJobs", "2")
+    sparkConf.set("spark.streaming.concurrentJobs", "3")
 
     val ssc = new StreamingContext(sparkConf, Seconds(10))
-    //ssc.checkpoint("./tmp")
+    ssc.checkpoint("./tmp")
 
 
     // Create direct kafka stream with brokers and topics
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
+
+
     val messages_1 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_1)
     val windowStream_1 = messages_1.window(Seconds(10), Seconds(10))
+
+
+
+
 
     windowStream_1.foreachRDD { rdd =>
 
@@ -50,14 +63,12 @@ object EngageStreaming {
 
         val lines = rdd.map(_._2)
         val lines2DF = lines.map(_.split(","))
-                            .map(t => (t(0).toString, t(1).toString)).toDF("id", "comment")
-        //lines2DF.rdd.saveAsTextFile("hdfs://ec2-54-201-180-66.us-west-2.compute.amazonaws.com:9000/user/price_data_output_scala1")
+                            .map(t => (t(0).toString, t(1).toString)).toDF("comments_id", "comment")
 
-
-        lines2DF.groupBy("id")
+        val comment_counts = lines2DF.groupBy("comments_id")
                 .count()
-                .toDF("id","count1")
-                .show(5)
+                .toDF("comments_id","count1")
+
 
         //val sentiments = lines2DF
         //.select('id, cleanxml('comment).as('doc))
@@ -77,40 +88,28 @@ object EngageStreaming {
 
 
 
-        //val r = new RedisClient("52.34.86.155", 6379, secret=Option("127001"))
-        //output.collect().foreach( t => {r.set(t(0), t(1).toString())})
+        val r = new RedisClient("54.201.180.66", 6379, secret=Option("127001"))
+        comment_counts.collect().foreach( t => {r.set(t(0), t(1).toString())})
 
                             }
+
+      // like_topic
       val messages_2 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_2)
       val windowStream_2 = messages_2.window(Seconds(10), Seconds(10))
 
-      windowStream_2.foreachRDD { rdd =>
+      val initialRDD = ssc.sparkContext.parallelize(List(("0", 0), ("1", 0)))
+      val mappingFunc = (id: String, one: Option[Int], state:State[Int]) => {
+        val sum = one.getOrElse(0) + state.getOption.getOrElse(0)
+        val output = (id, sum)
+        state.update(sum)
+        output
+      }
 
-          val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-          import sqlContext.implicits._
-
-          val lines = rdd.map(_._2)
-          //lines.saveAsTextFile("hdfs://ec2-54-201-180-66.us-west-2.compute.amazonaws.com:9000/user/price_data_output_scala")
-
-
-          val dislike = lines.map(_.split(","))
-                             .map(t => (t(0).toString))
-                             .toDF("id")
-                             .groupBy("id")
-                             .count()
-                             .toDF("id","count2")
-
-          dislike.show(5)
-
-          //dislike.rdd.saveAsTextFile("hdfs://ec2-54-201-180-66.us-west-2.compute.amazonaws.com:9000/user/price_data_output_scala2")
+      val stateCount = windowStream_2.map(_._2).map(_.split(",")).map(t => (t(0).toString,1)).mapWithState(
+        StateSpec.function(mappingFunc).initialState(initialRDD))
+      stateCount.print()
 
 
-
-
-          //val r = new RedisClient("52.34.86.155", 6379, secret=Option("127001"))
-          //output.collect().foreach( t => {r.set(t(0), t(1).toString())})
-
-                              }
 
 
     // Start the computation
