@@ -1,0 +1,29 @@
+from flask import Flask, request, g, render_template, redirect, url_for, jsonify, abort
+import redis
+import numpy
+import json
+import os
+
+app = Flask(__name__)
+app.config.from_object(__name__)
+
+
+with open("/home/ubuntu/engage/flaskapp/key.txt", 'r') as key_file:
+    ip = key_file.readline().strip()
+    password = key_file.readline().strip()
+
+    r = redis.StrictRedis(host=ip,
+                          port=6379,
+                          password=password)
+    if grid_id:
+        return r.get(grid_id)
+    else:
+        data = {}
+        max_volume = 1
+        for key in r.scan_iter():
+            val = r.get(key).split(';')
+            data[key] = {"average speed": val[0],
+                         "volume": val[1]}
+            if int(val[1]) > max_volume:
+                max_volume = int(val[1])
+            return data, max_volume

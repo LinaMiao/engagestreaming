@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        
+        <title>San Francisco Traffic Map</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            
+        <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
+        <link href="../static/bootstrap.min.css" rel="stylesheet">
+        <link href="../static/jumbotron-narrow.css" rel="stylesheet">
+        
+    </head>
+    
+    <body>
+        <div class="container text-center">
+            <div class="header" style="padding-bottom: 0px !important;">
+                <div class="row header-backgroung">
+                    <div class="col-md-12 media-middle large-text">
+                        <div class="large-text bold-text">Auto</div>
+                        <div class="large-text">Log</div>
+                        
+                    </div>
+                </div>
+                
+                <div class="row" style="margin-top: 10px;">
+                    <div class="col-md-3">
+                        <p><a class="btn btn-lg btn-success" style="background-color: #4885ed !important;"  href="{{ url_for('query') }}" role="button">query one</a></p>
+                        
+                    </div>
+                    <div class="col-md-3">
+                        <p><a class="btn btn-lg btn-success" style="background-color: #db3236 !important;"  href="{{ url_for('all_data_api') }}" role="button">query all</a></p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><a class="btn btn-lg btn-success" style="background-color: #f4c20d !important;"  href="{{ url_for('graph') }}" role="button">traffic graph</a></p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><a class="btn btn-lg btn-success" style="background-color: #4885ed !important;"  href="{{ url_for('index') }}" role="button">traffic map</a></p>
+                    </div>
+                </div>
+                
+            </div>
+            
+            
+            
+            <div class="row" >
+                <div class="col-md-12">
+                    <h1 class="page-title">About Me</h1>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    
+                    
+                    
+                </div>
+            </div>
+            
+        </div>
+
+
+    </body>
+</html>
+
