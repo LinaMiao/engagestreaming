@@ -1,0 +1,9 @@
+to start kafka data ingestion:
+  python kafka_producer.py events.txt
+
+to control message density:
+  set interval in kafka_producer -> 100 for ~200events/second, 10 for ~1200e/s
+
+to test stateful counting (topic 6 (play) and topic 7(leave))
+  python kafka_producer.py events_304.txt
+  asset r6.get(304) == 14 and r(7).get(304) == 5 after spark steaming started
