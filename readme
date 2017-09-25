@@ -1,0 +1,131 @@
+#set up kafka cluster:
+peg install <> environment
+peg install <> ssh
+peg install <> aws
+#log onto each node, install some python lib
+sudo apt-get update
+sudo apt-get install python-pip
+sudo apt-get install build-essential python-dev
+sudo apt-get install gfortran
+sudo pip install numpy
+sudo pip install kafka-python
+#config kafka before start a topic
+topic_delete enable
+topic_retention_hour 1
+acks all ?
+idempotency on
+
+#set up spark cluster:
+peg install <> environment
+peg install <> ssh
+peg install <> aws
+#log onto each node, install some python lib
+sudo apt-get update
+sudo apt-get install python-pip
+sudo apt-get install build-essential python-dev
+sudo pip install kafka-python
+sudo apt-get install pandoc
+sudo pip install pypandoc
+sudo pip install pyspark
+
+#install redis on spark cluster
+peg ssh spark-cluster2 1
+https://github.com/InsightDataScience/data-engineering-ecosystem/wiki/Redis
+make changes in conf file before start
+#bind 127.0.0.1
+requirepass <your password here>
+daemonize yes
+
+
+#set up flask on spark cluster
+peg ssh spark-cluster 1
+sudo apt-get update
+sudo apt-get install apache2
+sudo apt-get install libapache2-mod-wsgi
+sudo pip install flask
+sudo pip install redis
+#create flask directory for apace
+sudo ln -sT /home/ubuntu/engage/flaskapp /var/www/html/flaskapp
+#enable mod_wsgi
+sudo nano /etc/apache2/sites-enabled/000-default.conf
+# add the following under `DocumentRoot /var/www/html`
+WSGIDaemonProcess flaskapp threads=5
+WSGIScriptAlias / /var/www/html/flaskapp/flaskapp.wsgi
+<Directory flaskapp>
+    WSGIProcessGroup flaskapp
+    WSGIApplicationGroup %{GLOBAL}
+    Order deny,allow
+    Allow from all
+</Directory>
+# restart the webserver
+sudo apachectl restart
+#Change the file owner of data.json so that flask can rewrite new data.
+sudo chown www-data:www-data engage/flaskapp/static/data.json
+
+
+
+
+
+#start kafka cluster
+cd ./cluster_setup
+peg start kafka-cluster2
+peg service kafka-cluster2 zookeeper start
+peg service kafka-cluster2 kafka start
+
+##run simulation on kafka(this only need once)
+#cd ../simulation
+#python sim.py
+
+#start spark cluster
+cd ../cluster_setup
+peg start spark-cluster2
+peg service spark-cluster2 zookeeper start
+peg service spark-cluster2 hadoop start
+peg service spark-cluster2 spark start
+
+
+#start kafka producer
+#login to kafka master node
+peg ssh kafka-cluster2 1
+#create kafka topics
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic start_topic --partitions 1 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic end_topic --partitions 1 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic like_topic --partitions 2 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic dislike_topic --partitions 2 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic comments_topic --partitions 4 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic play_topic --partitions 2 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic leave_topic --partitions 2 --replication-factor 3
+
+
+#check kafka topics
+/usr/local/kafka/bin/kafka-console-consumer.sh --zookeeper localhost:2181 --topic like_topic --from-beginning
+
+#delete kafka topics
+/usr/local/kafka/bin/kafka-topics.sh --zookeeper localhost:2181 --delete --topic comment_topic
+
+#start kafka producer
+peg ssh kafka-cluster2 1
+python kafka_producer.py events.txt
+
+#to check messages on kafka:
+peg ssh kafka-cluster2 1
+/usr/local/kafka/bin/kafka-simple-consumer-shell.sh --broker-list localhost:9092 --topic video_topic --partition 0
+
+
+#submit spark sessions
+peg ssh spark-cluster2 1
+python ~/spark_streaming/spark_streaming_likes.py
+
+sbt assembly
+sbt package
+spark-submit --class CommentStreaming --master spark://ip-172-31-20-221:7077 --jars target/scala-2.11/engage_data-assembly-1.0.jar  /tmp/stanford-corenlp-3.6.0-models.jar /tmp/stanford-corenlp-3.6.0-models.jar
+
+
+
+TODOs:!!!!!!!!!!!!!!!!!!!!!!EXCITINGEXCITINGEXCITINGEXCITINGEXCITINGEXCITING!!!!!!!!!!!!!!!!!!!!!!!
+1) Kafka exactly once -- > we(who is we?) can pivot to more than once! say we don't want to
+2) Sampling in case of high volume of comments happen, too much for NLP to handle (drop every 10th like thing)
+3) Kafka flowing to S3 with secor (let's ensure more than once here)  --> CURR 
+4) playback with s3
+5) Unit test of spark streaming
+6) extend NLP from sentiment analysis to NER, and tokens
