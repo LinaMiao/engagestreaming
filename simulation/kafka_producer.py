@@ -52,10 +52,11 @@ def main():
                 log_tuple = logToTuple(line)
 
                 #partition events into potion of seconds (.1 min to mimic 1sec high throughput)
-                interval = 1
+                interval = 10
                 timestamp = int((json.loads(line)['timestamp'])*interval)/float(interval)
                 if timestamp != curr_time:
                     time.sleep(1)
+                    print time.strftime('%X %x %Z'), curr_time
                     curr_time = int(timestamp*interval)/float(interval)
 
 
@@ -66,10 +67,10 @@ def main():
                     producer_start.send('start_topic', log_tuple)
                 elif 'end' in line:
                     producer_end.send('end_topic', log_tuple)
-                elif 'like' in line:
-                    producer_like.send('like_topic', log_tuple)
                 elif 'dislike' in line:
-                    producer_dislike.send('dislike_topic', log_tuple)
+                    producer_like.send('dislike_topic', log_tuple)
+                elif 'like' in line:
+                    producer_dislike.send('like_topic', log_tuple)
                 elif 'play' in line:
                     producer_play.send('play_topic', log_tuple)
                 elif 'leave' in line:
