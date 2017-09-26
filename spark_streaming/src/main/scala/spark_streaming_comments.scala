@@ -100,7 +100,7 @@ object EngageStreaming {
                             .select('id, sentiment('sen).as('sentiments))
                             .groupBy("id")
                             .agg(collect_list("sentiments").as('sentiments_collect))
-
+ 
 
 
         //.select('sen, tokenize('sen).as('words), ner('sen).as('nerTags), sentiment('sen).as('sentiment)) -> potential extension
