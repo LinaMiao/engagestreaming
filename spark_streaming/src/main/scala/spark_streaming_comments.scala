@@ -51,14 +51,14 @@ object EngageStreaming {
 
     // Create context with 10 second batch interval
     val sparkConf = new SparkConf().setAppName("engage")
-    sparkConf.set("spark.streaming.concurrentJobs", "7")
+    sparkConf.set("spark.streaming.concurrentJobs", "16")
     sparkConf.set("spark.sql.shuffle.partitions", "400")
     sparkConf.set("spark.worker.cleanup.enabled", "True")
     sparkConf.set("spark.driver.memory", "2g")
     sparkConf.set("spark.executor.memory", "2g")
 
 
-    val ssc = new StreamingContext(sparkConf, Seconds(5))
+    val ssc = new StreamingContext(sparkConf, Seconds(10))
     ssc.checkpoint("hdfs://ec2-54-245-160-86.us-west-2.compute.amazonaws.com:9000/tmp/spark_checkpoint")
 
     // Create direct kafka stream with brokers and topics
@@ -66,7 +66,7 @@ object EngageStreaming {
 
     // Dstream for topic_1 - comments, with sliding window 30, 30
     val messages_1 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_1)
-    val windowStream_1 = messages_1.window(Seconds(10), Seconds(10))
+    val windowStream_1 = messages_1.window(Seconds(60), Seconds(60))
 
     windowStream_1.foreachRDD { rdd =>
 
@@ -80,17 +80,39 @@ object EngageStreaming {
                             .select('id, regexp_replace($"comment_raw", "[^A-Za-z?!.]+", " ").as('comment))
                             .filter(not($"comment" === " "))
                             .select('id, explode(ssplit('comment)).as('sen))
-                            .select('id, tokenize('sen).as('tokens), sentiment('sen).as('sentiments))
-                            .toDF("id", "tokens", "sentiments")
+                            //.select('id, 'comment.as('sen))
+                            // .select('id, tokenize('sen).as('tokens), sentiment('sen).as('sentiments))
+                            // .toDF("id", "tokens", "sentiments")
+                            // .groupBy("id")
+                            // .agg(collect_list("tokens"), collect_list("sentiments"))
+
+        // let's tokenize everything
+        val token = nlp.select('id, tokenize('sen).as('tokens))
+                        .groupBy("id")
+                        .agg(collect_list("tokens").as('tokens_collect))
+
+
+        // let's randomly choose 1000 sentences per minute for sentiment analysis
+        val senCount = nlp.count()
+        val prob:Double = if(senCount>1000) 1000.0/senCount else 1
+
+        val sent_score = nlp.filter(($"id"*0 + scala.util.Random.nextFloat) > (1-prob))
+                            .select('id, sentiment('sen).as('sentiments))
                             .groupBy("id")
-                            .agg(collect_list("tokens"), collect_list("sentiments"))
+                            .agg(collect_list("sentiments").as('sentiments_collect))
 
 
 
         //.select('sen, tokenize('sen).as('words), ner('sen).as('nerTags), sentiment('sen).as('sentiment)) -> potential extension
 
         val r1 = new RedisClient("54.245.160.86", 6379, database=1, secret=Option("127001"))
-        nlp.collect().foreach( t => {r1.set(t(0), t(1) + ";" + t(2))})
+        // update database only if content is not empty
+        if(token.count() > 0)
+          token.collect().foreach( t => {r1.set(t(0) + "_token", t(1))})
+        if(sent_score.count() > 0)
+          sent_score.collect().foreach( t => {r1.set(t(0) + "_sentiment", t(1))})
+
+
         //System.gc()
         //sentiments.show()
 
