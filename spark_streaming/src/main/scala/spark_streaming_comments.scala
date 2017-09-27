@@ -64,6 +64,7 @@ object EngageStreaming {
     // Create direct kafka stream with brokers and topics
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
 
+
     // Dstream for topic_1 - comments, with sliding window 30, 30
     val messages_1 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_1)
     val windowStream_1 = messages_1.window(Seconds(60), Seconds(60))
@@ -100,7 +101,7 @@ object EngageStreaming {
                             .select('id, sentiment('sen).as('sentiments))
                             .groupBy("id")
                             .agg(collect_list("sentiments").as('sentiments_collect))
- 
+
 
 
         //.select('sen, tokenize('sen).as('words), ner('sen).as('nerTags), sentiment('sen).as('sentiment)) -> potential extension
@@ -124,148 +125,150 @@ object EngageStreaming {
 
                            }
     //
-    //   // DStream for topic2, likes, with sliding window 10, 10
-    //   val messages_2 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_2)
-    //   val windowStream_2 = messages_1.window(Seconds(10), Seconds(10))
+      // DStream for topic2, likes, with sliding window 10, 10
+      val messages_2 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_2)
+      val windowStream_2 = messages_1.window(Seconds(10), Seconds(10))
+
+      windowStream_2.foreachRDD { rdd =>
+
+          val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
+          import sqlContext.implicits._
+
+          val likesCount  = rdd.map(_._2)
+                              .map(_.split(","))
+                              .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
+                              .toDF("id","likes")
+                              .groupBy("id")
+                              .count()
+
+          val r2 = new RedisClient("54.245.160.86", 6379,database=2,secret=Option("127001"))
+          likesCount.collect().foreach( t => {r2.set(t(0), t(1).toString())})
+          //System.gc()
+                              }
+
+      // DStream for topic3, dislikes, with sliding window 10, 10
+      val messages_3 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_3)
+      val windowStream_3 = messages_3.window(Seconds(10), Seconds(10))
+
+      windowStream_3.foreachRDD { rdd =>
+
+          val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
+          import sqlContext.implicits._
+
+          val dislikesCount = rdd.map(_._2)
+                              .map(_.split(","))
+                              .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
+                              .toDF("id","dislikes")
+                              .groupBy("id")
+                              .count()
+
+
+          val r3 = new RedisClient("54.245.160.86", 6379,database=3,secret=Option("127001"))
+          dislikesCount.collect().foreach( t => {r3.set(t(0), t(1).toString())})
+          //System.gc()
+                              }
     //
-    //   windowStream_2.foreachRDD { rdd =>
+      // DStream for topic4, starts, with sliding window 10, 10
+      val messages_4 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_4)
+      val windowStream_4 = messages_4.window(Seconds(10), Seconds(10))
+
+      windowStream_4.foreachRDD { rdd =>
+
+          val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
+          import sqlContext.implicits._
+
+          val starts = rdd.map(_._2)
+                              .map(_.split(","))
+                              .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
+                              .toDF("id","content")
+
+
+
+          val r4 = new RedisClient("54.245.160.86", 6379,database=4,secret=Option("127001"))
+          starts.collect().foreach( t => {r4.set(t(0), t(1))})
+          //starts.show()
+          //System.gc()
+                              }
     //
-    //       val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-    //       import sqlContext.implicits._
-    //
-    //       val likesCount  = rdd.map(_._2)
-    //                           .map(_.split(","))
-    //                           .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
-    //                           .toDF("id","likes")
-    //                           .groupBy("id")
-    //                           .count()
-    //
-    //       val r2 = new RedisClient("54.245.160.86", 6379,database=2,secret=Option("127001"))
-    //       likesCount.collect().foreach( t => {r2.set(t(0), t(1).toString())})
-    //       //System.gc()
-    //                           }
-    //
-    //   // DStream for topic3, dislikes, with sliding window 10, 10
-    //   val messages_3 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_3)
-    //   val windowStream_3 = messages_3.window(Seconds(10), Seconds(10))
-    //
-    //   windowStream_3.foreachRDD { rdd =>
-    //
-    //       val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-    //       import sqlContext.implicits._
-    //
-    //       val dislikesCount = rdd.map(_._2)
-    //                           .map(_.split(","))
-    //                           .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
-    //                           .toDF("id","dislikes")
-    //                           .groupBy("id")
-    //                           .count()
-    //
-    //
-    //       val r3 = new RedisClient("54.245.160.86", 6379,database=3,secret=Option("127001"))
-    //       dislikesCount.collect().foreach( t => {r3.set(t(0), t(1).toString())})
-    //       //System.gc()
-    //                           }
-    // //
-    //   // DStream for topic4, starts, with sliding window 10, 10
-      // val messages_4 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_4)
-      // val windowStream_4 = messages_4.window(Seconds(10), Seconds(10))
-      //
-      // windowStream_4.foreachRDD { rdd =>
-      //
-      //     val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-      //     import sqlContext.implicits._
-      //
-      //     val starts = rdd.map(_._2)
-      //                         .map(_.split(","))
-      //                         .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
-      //                         .toDF("id","content")
-      //
-      //
-      //
-      //     val r4 = new RedisClient("54.245.160.86", 6379,database=4,secret=Option("127001"))
-      //     starts.collect().foreach( t => {r4.set(t(0), t(1))})
-      //     //starts.show()
-      //     //System.gc()
-      //                         }
-    // //
-    // // DStream for topic5, ends, with sliding window 10, 10
-    // val messages_5 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_5)
-    // val windowStream_5 = messages_5.window(Seconds(10), Seconds(10))
-    //
-    // windowStream_5.foreachRDD { rdd =>
-    //
-    //     val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-    //     import sqlContext.implicits._
-    //
-    //     val endsCount = rdd.map(_._2)
-    //                         .map(_.split(","))
-    //                         .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
-    //                         .toDF()
+    // DStream for topic5, ends, with sliding window 10, 10
+    val messages_5 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_5)
+    val windowStream_5 = messages_5.window(Seconds(10), Seconds(10))
+
+    windowStream_5.foreachRDD { rdd =>
+
+        val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
+        import sqlContext.implicits._
+
+        val endsCount = rdd.map(_._2)
+                            .map(_.split(","))
+                            .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
+                            .toDF()
+
+
+
+        val r5 = new RedisClient("54.245.160.86", 6379,database=5,secret=Option("127001"))
+        endsCount.collect().foreach( t => {r5.set(t(0), t(1))})
+        //System.gc()
+                            }
+
+      // DStream for topic6, plays, with sliding window 10, 10
+      val messages_6 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_6)
+      //val windowStream_6 = messages_6.window(Seconds(10), Seconds(10))
+
+      val initialRDD_6 = ssc.sparkContext.parallelize(List(("0", 0), ("1", 0)))
+      val mappingFunc_6 = (id6: String, one6: Option[Int], state6:State[Int]) => {
+        val sum6 = one6.getOrElse(0) + state6.getOption.getOrElse(0)
+        val output6 = (id6, sum6)
+        state6.update(sum6)
+        output6
+      }
+
+      val playStateCount = messages_6.map(_._2).map(_.split(",")).map(t => (t(0).toString(),1)).mapWithState(
+        StateSpec.function(mappingFunc_6).initialState(initialRDD_6))
+
+      playStateCount.print()
+
+      playStateCount.foreachRDD { rdd =>
+          val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
+          import sqlContext.implicits._
+
+          val playCount = rdd.toDF("id","playCount")
+          //                     .groupBy("id")
+          //                     .count()
+
+          val r6 = new RedisClient("54.245.160.86", 6379,database=6,secret=Option("127001"))
+          playCount.collect().foreach( t => {r6.set(t(0).toString().stripPrefix("[").toString(), t(1))})
+
+                             }
     //
     //
-    //
-    //     val r5 = new RedisClient("54.245.160.86", 6379,database=5,secret=Option("127001"))
-    //     endsCount.collect().foreach( t => {r5.set(t(0), t(1))})
-    //     //System.gc()
-    //                         }
-    //
-      // // DStream for topic6, plays, with sliding window 10, 10
-      // val messages_6 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_6)
-      // val windowStream_6 = messages_6.window(Seconds(10), Seconds(10))
-      //
-      // val initialRDD_6 = ssc.sparkContext.parallelize(List(("0", 0), ("1", 0)))
-      // val mappingFunc_6 = (id6: String, one6: Option[Int], state6:State[Int]) => {
-      //   val sum6 = one6.getOrElse(0) + state6.getOption.getOrElse(0)
-      //   val output6 = (id6, sum6)
-      //   state6.update(sum6)
-      //   output6
-      // }
-      //
-      // val playStateCount = windowStream_6.map(_._2).map(_.split(",")).map(t => (t(0).toString(),1)).mapWithState(
-      //   StateSpec.function(mappingFunc_6).initialState(initialRDD_6))
-      //
-      // playStateCount.foreachRDD { rdd =>
-      //     val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-      //     import sqlContext.implicits._
-      //
-      //     val playCount = rdd.toDF("id","playCount")
-      //                         .groupBy("id")
-      //                         .count()
-      //
-      //     val r6 = new RedisClient("54.245.160.86", 6379,database=6,secret=Option("127001"))
-      //     playCount.collect().foreach( t => {r6.set(t(0).toString().stripPrefix("[").toString(), t(1))})
-      //
-      //                         }
-    // //
-    // //
-      // DStream for topic7, leaves, with sliding window 10, 10
-      // val messages_7 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_7)
-      // val windowStream_7 = messages_7.window(Seconds(10), Seconds(10))
-      //
-      // val initialRDD_7 = ssc.sparkContext.parallelize(List(("0", 0), ("1", 0)))
-      // val mappingFunc_7 = (id7: String, one7: Option[Int], state7:State[Int]) => {
-      //   val sum7 = one7.getOrElse(0) + state7.getOption.getOrElse(0)
-      //   val output7 = (id7, sum7)
-      //   state7.update(sum7)
-      //   output7
-      // }
-      //
-      // val leaveStateCount = windowStream_7.map(_._2).map(_.split(",")).map(t => (t(0).toString(),1)).mapWithState(
-      //   StateSpec.function(mappingFunc_7).initialState(initialRDD_7))
-      //
-      // leaveStateCount.foreachRDD { rdd =>
-      //     val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
-      //     import sqlContext.implicits._
-      //
-      //     val leaveCount = rdd.toDF("id","leaveCount")
-      //                         .groupBy("id")
-      //                         .count()
-      //
-      //     val r7 = new RedisClient("54.245.160.86", 6379, database=7,secret=Option("127001"))
-      //     leaveCount.collect().foreach( t => {r7.set(t(0).toString().stripPrefix("[").toString(), t(1))})
-      //
-      //                           }
+    //  DStream for topic7, leaves, with sliding window 10, 10
+      val messages_7 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_7)
+      val windowStream_7 = messages_7.window(Seconds(10), Seconds(10))
+
+      val initialRDD_7 = ssc.sparkContext.parallelize(List(("0", 0), ("1", 0)))
+      val mappingFunc_7 = (id7: String, one7: Option[Int], state7:State[Int]) => {
+        val sum7 = one7.getOrElse(0) + state7.getOption.getOrElse(0)
+        val output7 = (id7, sum7)
+        state7.update(sum7)
+        output7
+      }
+
+      val leaveStateCount = windowStream_7.map(_._2).map(_.split(",")).map(t => (t(0).toString(),1)).mapWithState(
+        StateSpec.function(mappingFunc_7).initialState(initialRDD_7))
+
+      leaveStateCount.foreachRDD { rdd =>
+          val sqlContext = SQLContextSingleton.getInstance(rdd.sparkContext)
+          import sqlContext.implicits._
+
+          val leaveCount = rdd.toDF("id","leaveCount")
+          //                    .groupBy("id")
+          //                    .count()
+
+          val r7 = new RedisClient("54.245.160.86", 6379, database=7,secret=Option("127001"))
+          leaveCount.collect().foreach( t => {r7.set(t(0).toString().stripPrefix("[").toString(), t(1))})
+
+                                }
 
 
 
