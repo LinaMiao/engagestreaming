@@ -16,32 +16,13 @@
 
     <body>
         <div class="container text-center">
-            <div class="header" style="padding-bottom: 0px !important;">
 
-
-                <div class="row" style="margin-top: 10px;">
-                    <div class="col-md-3">
-                        <p><a class="btn btn-lg btn-success" style="background-color: #4885ed !important;"  href="{{ url_for('query') }}" role="button">Realtime likes</a></p>
-
-                    </div>
-                    <div class="col-md-3">
-                        <p><a class="btn btn-lg btn-success" style="background-color: #db3236 !important;"  href="{{ url_for('all_data_api') }}" role="button">Realtime dislike</a></p>
-                    </div>
-                    <div class="col-md-3">
-                        <p><a class="btn btn-lg btn-success" style="background-color: #f4c20d !important;"  href="{{ url_for('graph') }}" role="button">Realtime Trends</a></p>
-                    </div>
-                    <div class="col-md-3">
-                        <p><a class="btn btn-lg btn-success" style="background-color: #4885ed !important;"  href="{{ url_for('about_me') }}" role="button">linkedin</a></p>
-                    </div>
-                </div>
-
-            </div>
 
 
 
             <div class="row" >
                 <div class="col-md-12">
-                    <h1 class="page-title">Engage Streaming</h1>
+                    <h1 class="page-title">Engage</h1>
                 </div>
             </div>
 
@@ -71,9 +52,10 @@
                            [{{ grid[2] }}, {{ grid[3] }}],
                            [{{ grid[4] }}, {{ grid[5] }}],
                            [{{ grid[6] }}, {{ grid[7] }}]])
-                           .setStyle({fillColor: '{{grid[10]}}',
+                           .setStyle({fillColor: '{{grid[14]}}',
                                      weight: '1', opacity: 0, fillOpacity: 0.6})
-                           .addTo(mymap).bindPopup("{{grid[8]}} <br> {{grid[9]}}");
+                           .addTo(mymap)
+                           .bindPopup("{{grid[8]}} <br> {{grid[9]}} <br> {{grid[10]}} <br> {{grid[11]}} <br> {{grid[12]}} <br> {{grid[13]}}");
             {% endfor %}
 
             </script>
