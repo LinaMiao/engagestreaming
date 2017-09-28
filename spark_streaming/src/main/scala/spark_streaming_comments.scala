@@ -81,6 +81,7 @@ object EngageStreaming {
                             .select('id, regexp_replace($"comment_raw", "[^A-Za-z?!.]+", " ").as('comment))
                             .filter(not($"comment" === " "))
                             .select('id, explode(ssplit('comment)).as('sen))
+                            //.filter(not($"sen" === " "))
                             //.select('id, 'comment.as('sen))
                             // .select('id, tokenize('sen).as('tokens), sentiment('sen).as('sentiments))
                             // .toDF("id", "tokens", "sentiments")
@@ -97,11 +98,13 @@ object EngageStreaming {
         val senCount = nlp.count()
         val prob:Double = if(senCount>1000) 1000.0/senCount else 1
 
-        val sent_score = nlp.filter(($"id"*0 + scala.util.Random.nextFloat) > (1-prob))
+        val rand = scala.util.Random
+        val sample_rand = rand.nextFloat
+
+        val sent_score = nlp.filter((($"id"*0 + sample_rand) >= (1.0-prob)))
                             .select('id, sentiment('sen).as('sentiments))
                             .groupBy("id")
                             .agg(collect_list("sentiments").as('sentiments_collect))
-
 
 
         //.select('sen, tokenize('sen).as('words), ner('sen).as('nerTags), sentiment('sen).as('sentiment)) -> potential extension
