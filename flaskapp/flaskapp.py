@@ -8,9 +8,11 @@
 #      :
 from flask import Flask, request, g, render_template, redirect, url_for, jsonify, abort
 import redis
-import numpy
+import numpy as np
 import json
 import os
+import re
+from collections import Counter
 
 app = Flask(__name__)
 app.config.from_object(__name__)
@@ -64,79 +66,52 @@ def get_colors(curr_val, min_val, max_val):
     color = "#%s66%s"%(red, blue)
     return color
 
+#stop word list from nltk
+stop_words = ['all', 'just', 'being', 'over', 'both', 'through', 'yourselves', \
+'its', 'before', 'o', 'hadn', 'herself', 'll', 'had', 'should', 'to', 'only', 'won', \
+'under', 'ours', 'has', 'do', 'them', 'his', 'very', 'they', 'not', 'during', 'now', \
+'him', 'nor', 'd', 'did', 'didn', 'this', 'she', 'each', 'further', 'where', 'few', \
+'because', 'doing', 'some', 'hasn', 'are', 'our', 'ourselves', 'out', 'what', 'for', \
+'while', 're', 'does', 'above', 'between', 'mustn', 't', 'be', 'we', 'who', 'were', \
+'here', 'shouldn', 'hers', 'by', 'on', 'about', 'couldn', 'of', 'against', 's', 'isn', \
+'or', 'own', 'into', 'yourself', 'down', 'mightn', 'wasn', 'your', 'from', 'her', 'their', \
+'aren', 'there', 'been', 'whom', 'too', 'wouldn', 'themselves', 'weren', 'was', 'until', \
+'more', 'himself', 'that', 'but', 'don', 'with', 'than', 'those', 'he', 'me', 'myself', 'ma', \
+'these', 'up', 'will', 'below', 'ain', 'can', 'theirs', 'my', 'and', 've', 'then', 'is', 'am', \
+'it', 'doesn', 'an', 'as', 'itself', 'at', 'have', 'in', 'any', 'if', 'again', 'no', 'when', \
+'same', 'how', 'other', 'which', 'you', 'shan', 'needn', 'haven', 'after', 'most', 'such', \
+'why', 'a', 'off', 'i', 'm', 'yours', 'so', 'y', 'the', 'having', 'once',\
+"wrappedarray","comment","the","like","film","movie","think", "br", "one", "would", "much",\
+"txt", "even", "u", "thought", "k", "really", "know", "get", "n"]
 
 
-# get sentiment_score, mapping score to colors
-def get_comments():
+# get top words from past comment
+def get_words(key):
 
-    grids = []
-    for key in r1.keys():
-        sentiment = r1.get(key)
-        item = r4.get(key).split()
-        lat0 = float(item[12][:-5])
-        long0 = float(item[10][:-5])
-        color = get_colors(float(sentiment),1,3)
+    words_raw = r1.get(key+"_token")
+    if words_raw is not None:
+        #clean a little bit
+        words = re.sub("[^A-Za-z]"," ",words_raw).split()
+        # remove stop words
+        words = [word.lower() for word in words if word.lower() not in stop_words]
+        common = Counter(words).most_common(5)
+        return str(common)
+    else:
+        return "Comments yet to come"
 
-        corners = []
-        views = get_view(key)
-        views = int(r6.get(key))
-        size = 0.5 * views/1000.0
-        dxs = [-1, -1, 1, 1]
-        dys = [-1, 1, 1, -1]
-        for dx,dy in zip(dxs,dys):
-            corners.append(lat0 + dx*size)
-            corners.append(long0 + dy*size)
+# get sentiment_score
+def get_sentiment_score(key):
 
-        grids.append(corners + ["video_id:"+key, "sentiment_score:"+str(round(float(sentiment),2))] + [color])
-    return grids
-
-
-# get number of likes, mapping score to colors
-def get_likes():
-
-    grids = []
-    for key in r1.keys():
-        likesCount = r2.get(key)
-        item = r4.get(key).split()
-        lat0 = float(item[12][:-5])
-        long0 = float(item[10][:-5])
-        color = get_colors(float(likesCount),100,500)
-
-        corners = []
-        views = get_view(key)
-        size = 0.5 * views/1000.0
-        dxs = [-1, -1, 1, 1]
-        dys = [-1, 1, 1, -1]
-        for dx,dy in zip(dxs,dys):
-            corners.append(lat0 + dx*size)
-            corners.append(long0 + dy*size)
-
-        grids.append(corners + ["video_id:"+key, "number of likes:"+str(round(float(likesCount),2))] + [color])
-    return grids
-
-
-# get number of dislikes, mapping score to colors
-def get_dislikes():
-
-    grids = []
-    for key in r1.keys():
-        dislikesCount = r3.get(key)
-        item = r4.get(key).split()
-        lat0 = float(item[12][:-5])
-        long0 = float(item[10][:-5])
-        color = get_colors(float(dislikesCount),100,500)
-
-        corners = []
-        views = get_view(key)
-        size = 0.5 * views/10.0
-        dxs = [-1, -1, 1, 1]
-        dys = [-1, 1, 1, -1]
-        for dx,dy in zip(dxs,dys):
-            corners.append(lat0 + dx*size)
-            corners.append(long0 + dy*size)
-
-        grids.append(corners + ["video_id:"+key, "number of likes:"+str(round(float(dislikesCount),2))] + [color])
-    return grids
+    sentiment_score_raw = r1.get(key+"_sentiment")
+    if sentiment_score_raw is not None:
+        sentiment = [float(s) for s in sentiment_score_raw.split(",")[13:-1]]
+        if len(sentiment) > 0:
+            print sentiment
+            sentiment_avg = round(np.mean(sentiment),2)
+            return str(sentiment_avg)
+        else:
+            return "Sentiment score yet to come"
+    return "Sentiment score yet to come"
 
 
 #get no. of current views
@@ -148,38 +123,53 @@ def get_view(key, debug=0):
         endsCount = 0
     views = float(playsCount) - float(endsCount) # this could be used to indicate out of order log files,
 
-
     if debug:
         return views, float(playsCount), float(endsCount)
     else:
         return views
 
-# get number of views at current time window
+
+# get number of views at current time window, used as default load view,
+# curr_view as size
 def get_views():
     grids = []
 
     for key in r6.keys():
 
         total_views = r6.get(key)
+        # get location info
         item = r4.get(key).split()
         lat0 = float(item[12][:-5])
         long0 = float(item[10][:-5])
 
         views,plays,leaves = get_view(key,1)
-        print key, views, plays, leaves
-        color = get_colors(1,1,5) #get uniform color, use size to diff
-        #color = get_colors(views, 0, 100)
+
+
         corners = []
 
-
-        size = float(total_views)/100.0
-        dxs = [-2, -2, 2, 2]
+        size = min(float(views)/5000.0,1)
+        dxs = [-1.5, -1.5, 1.5, 1.5]
         dys = [-1, 1, 1, -1]
         for dx,dy in zip(dxs,dys):
             corners.append(lat0 + dy*size)
             corners.append(long0 + dx*size)
 
-        grids.append(corners + ["Number of live views:"+str(round(float(plays),2)), "Number of leave views:"+str(leaves)] + [color])
+        words = get_words(key)
+        sentiment_score = get_sentiment_score(key)
+        recentLikes = r2.get(key) if r2.get(key) is not None else 0
+        recentDislikes = r3.get(key)
+
+        # total views as color
+        #color = get_colors(int(total_views),100,10000)
+
+        # total views as color
+        color = get_colors(int(recentLikes),1,100)
+
+        onClick = ["Concurent viewers: "+str(int(views)), "Total viewers: "+str(total_views),
+        "Recent likes: "+str(recentLikes), "Recent dislikes: "+str(recentDislikes),
+        "Top popular words: "+str(words), "Sentiment score: "+str(sentiment_score)]
+
+        grids.append(corners + onClick + [color])
     return grids
 
 
@@ -208,52 +198,6 @@ def index():
     #print grids
     return render_template("index.html", grids=grids)
 
-
-# route for the api of grid and values
-@app.route('/api/alldata')
-def all_data_api():
-    data, volume = query_all_data()
-    return jsonify(data)
-
-
-# route for display form for query a location
-@app.route('/query', methods=['GET', 'POST'])
-def query():
-    if request.method == 'POST':
-        lat = request.form['lat']
-        lon = request.form['lon']
-        return redirect('http://autolog.online/api/query?lat=%s&long=%s'%(lat, lon))
-    else:
-        return render_template("query.html")
-
-# route for the api of a specific grid
-@app.route('/api/query')
-def grid_data_api():
-    lat = float(request.args.get('lat'))
-    lon = float(request.args.get('long'))
-    print lat, lon, type(lat), type(lon)
-    grid_id = 50*(int(round((37.813187 - lat)/0.00013633111))/18) + \
-              int(round((lon + 122.528741387)/0.00017166233))/18
-    data = query_all_data(grid_id=grid_id)
-    if data:
-        data = data.split(';')
-        return jsonify({"average speed": data[0],
-                        "volume": data[1]})
-    else:
-        return jsonify({"average speed": 0,
-                        "volume": 0})
-
-
-# route for display graph
-@app.route('/graph')
-def graph():
-    generate_graph()
-    return render_template("graph.html")
-
-# route for about me page
-@app.route('/about_me')
-def about_me():
-    return redirect("https://www.linkedin.com/in/lina-miao-9312a453/")
 
 if __name__ == '__main__':
     app.run()
