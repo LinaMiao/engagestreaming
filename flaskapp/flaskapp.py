@@ -82,7 +82,7 @@ stop_words = ['all', 'just', 'being', 'over', 'both', 'through', 'yourselves', \
 'same', 'how', 'other', 'which', 'you', 'shan', 'needn', 'haven', 'after', 'most', 'such', \
 'why', 'a', 'off', 'i', 'm', 'yours', 'so', 'y', 'the', 'having', 'once',\
 "wrappedarray","comment","the","like","film","movie","think", "br", "one", "would", "much",\
-"txt", "even", "u", "thought", "k", "really", "know", "get", "n"]
+"txt", "even", "u", "thought", "k", "really", "know", "get", "n", "good", "bad", "made"]
 
 
 # get top words from past comment
@@ -129,8 +129,7 @@ def get_view(key, debug=0):
         return views
 
 
-# get number of views at current time window, used as default load view,
-# curr_view as size
+# get number of views at current time window
 def get_views():
     grids = []
 
@@ -157,8 +156,9 @@ def get_views():
         words = get_words(key)
         sentiment_score = get_sentiment_score(key)
         recentLikes = r2.get(key) if r2.get(key) is not None else 0
-        recentDislikes = r3.get(key)
-
+        r2.set(key, 0)
+        recentDislikes = r3.get(key) if r3.get(key) is not None else 0
+        r3.set(key, 0)
         # total views as color
         #color = get_colors(int(total_views),100,10000)
 
