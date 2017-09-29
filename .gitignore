@@ -1,0 +1,5 @@
+simulation/imdb_review/
+cluster_setup/lina-IAM-keypair.pem
+simulation/kafkaProducerTime.notBackUp
+spark_streaming/designs
+spark_streaming/project/plugins.sbt
