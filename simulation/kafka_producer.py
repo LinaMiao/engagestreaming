@@ -77,8 +77,8 @@ def main():
                 elif 'leave' in line:
                     producer_leave.send('leave_topic', log_tuple)
 
-        #time.sleep(3600)
-        #os.system('python redis_flushdb.py')
+        time.sleep(3600) #open if testing
+        #os.system('python redis_flushdb.py') #open with testing with big events.txt file
 
 
 
