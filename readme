@@ -88,13 +88,13 @@ peg service spark-cluster2 spark start
 #login to kafka master node
 peg ssh kafka-cluster2 1
 #create kafka topics
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic start_topic --partitions 1 --replication-factor 3
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic end_topic --partitions 1 --replication-factor 3
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic like_topic --partitions 2 --replication-factor 3
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic dislike_topic --partitions 2 --replication-factor 3
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic comments_topic --partitions 4 --replication-factor 3
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic play_topic --partitions 2 --replication-factor 3
-/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic leave_topic --partitions 2 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic start_topic --partitions 10 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic end_topic --partitions 10 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic like_topic --partitions 20 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic dislike_topic --partitions 20 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic comments_topic --partitions 40 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic play_topic --partitions 20 --replication-factor 3
+/usr/local/kafka/bin/kafka-topics.sh --create --zookeeper localhost:2181 --topic leave_topic --partitions 20 --replication-factor 3
 
 
 #check kafka topics
@@ -123,9 +123,9 @@ spark-submit --class CommentStreaming --master spark://ip-172-31-20-221:7077 --j
 
 
 TODOs:!!!!!!!!!!!!!!!!!!!!!!EXCITINGEXCITINGEXCITINGEXCITINGEXCITINGEXCITING!!!!!!!!!!!!!!!!!!!!!!!
-1) Kafka exactly once -- > we(who is we?) can pivot to more than once! say we don't want to
-2) Sampling in case of high volume of comments happen, too much for NLP to handle (drop every 10th like thing)
-3) Kafka flowing to S3 with secor (let's ensure more than once here)  --> CURR 
-4) playback with s3
-5) Unit test of spark streaming
-6) extend NLP from sentiment analysis to NER, and tokens
+DONE 1) Kafka exactly once -- > we(who is we?) can pivot to more than once! say we don't want to
+DONE 2) Sampling in case of high volume of comments happen, too much for NLP to handle (drop every 10th like thing)
+DONE 3) Kafka flowing to S3 with secor (let's ensure more than once here)  --> CURR
+FUTURE WORK 4) playback with s3
+PARTIAL DONE 5) Unit test of spark streaming
+FUTURE WORK 6) extend NLP from sentiment analysis to NER, and tokens
