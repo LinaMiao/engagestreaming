@@ -1,7 +1,7 @@
-# UI: map with video total views as size of box
+# UI: map with video concurent views as size of box
 #     choice of overlay: windowed sentiment_score / windowed no. of likes / windowed no. of dislikes
 #
-#     Onclick of
+#     Onclick of per square, window aggregation info will show in a simple box
 
 # TODOs: polygon to circle, size adjust
 #      : Onclick of videos
@@ -22,6 +22,7 @@ with open("/home/ubuntu/Engage/flaskapp/key.txt", 'r') as key_file:
     ip = key_file.readline().strip()
     password = key_file.readline().strip()
 
+# build redis client for different databases
 r1 = redis.StrictRedis(host=ip,
                       port=6379,
                       password=password,
@@ -104,7 +105,7 @@ def get_sentiment_score(key):
 
     sentiment_score_raw = r1.get(key+"_sentiment")
     if sentiment_score_raw is not None:
-        sentiment = [float(s) for s in sentiment_score_raw.split(",")[13:-1]]
+        sentiment = [float(s) for s in sentiment_score_raw[13:-1].split(",")]
         if len(sentiment) > 0:
             print sentiment
             sentiment_avg = round(np.mean(sentiment),2)
@@ -156,13 +157,11 @@ def get_views():
         words = get_words(key)
         sentiment_score = get_sentiment_score(key)
         recentLikes = r2.get(key) if r2.get(key) is not None else 0
-        r2.set(key, 0)
+        #r2.set(key, 0)
         recentDislikes = r3.get(key) if r3.get(key) is not None else 0
-        r3.set(key, 0)
-        # total views as color
-        #color = get_colors(int(total_views),100,10000)
+        #r3.set(key, 0)
 
-        # total views as color
+        # recentlikes views as color
         color = get_colors(int(recentLikes),1,100)
 
         onClick = ["Concurent viewers: "+str(int(views)), "Total viewers: "+str(total_views),
