@@ -46,7 +46,7 @@ object EngageStreaming {
 
     // Create context with 10 second batch interval
     val sparkConf = new SparkConf().setAppName("engage")
-    sparkConf.set("spark.streaming.concurrentJobs", "16")
+    sparkConf.set("spark.streaming.concurrentJobs", "18")
     sparkConf.set("spark.sql.shuffle.partitions", "400")
     sparkConf.set("spark.worker.cleanup.enabled", "True")
     sparkConf.set("spark.driver.memory", "2g")
@@ -84,10 +84,20 @@ object EngageStreaming {
                         .groupBy("id")
                         .agg(collect_list("tokens").as('tokens_collect))
 
+        val r1 = new RedisClient("54.245.160.86", 6379, database=1, secret=Option("127001"))
+        // update database only if content is not empty
+        token.collect().foreach( t => {if(t(1).toString().length > 15)
+                                          r1.set(t(0) + "_token", t(1))})
 
-        // let's randomly choose 500 sentences per minute for sentiment analysis
-        val senCount = nlp.count()
-        val prob:Double = if(senCount> 500) 500.0/senCount else 1
+
+        val tokenCount = rdd.map(_._2)
+                            .map(_.split("\\{"))
+                            .map(t => (t(0).toString(), t(1).toString().split(" ").length))
+                            .toDF("id", "len")
+                            .select(col("len"))
+                            .map(_(0).asInstanceOf[Int]).reduce(_+_)
+
+        val prob:Double = if(tokenCount> 5000) 5000.0/tokenCount else 1
 
 
         val sent_score = nlp.map(row => {val rand = new scala.util.Random
@@ -99,39 +109,9 @@ object EngageStreaming {
                             .agg(collect_list("sentiments").as('sentiments_collect))
 
 
-        //.select('sen, tokenize('sen).as('words), ner('sen).as('nerTags), sentiment('sen).as('sentiment)) -> potential extension
+        sent_score.collect().foreach( t => {if(t(1).toString().length > 15)
+                                              r1.set(t(0) + "_sentiment", t(1))})
 
-        // val r1 = new RedisClient("54.245.160.86", 6379, database=1, secret=Option("127001"))
-        // // update database only if content is not empty
-        // token.collect().foreach( t => {if(t(1).toString().length > 15)
-        //                                   r1.set(t(0) + "_token", t(1))})
-
-        token.foreachPartition { p =>
-
-                    val r1 = new RedisClient("54.245.160.86", 6379, database=1, secret=Option("127001"))
-
-                      p.foreach(t => {
-                        if(t(1).toString().length > 15)
-                          r1.set(t(0) + "_token", t(1))})
-
-                    r1.disconnect
-        }
-
-
-
-        // sent_score.collect().foreach( t => {if(t(1).toString().length > 15)
-        //                                       r1.set(t(0) + "_sentiment", t(1))})
-
-        sent_score.foreachPartition { p =>
-
-                    val r1 = new RedisClient("54.245.160.86", 6379, database=1, secret=Option("127001"))
-
-                      p.foreach(t => {
-                        if(t(1).toString().length > 15)
-                          r1.set(t(0) + "_sentiment", t(1))})
-
-                    r1.disconnect
-        }
 
                            }
 
@@ -151,19 +131,9 @@ object EngageStreaming {
                               .groupBy("id")
                               .count()
 
-          // val r2 = new RedisClient("54.245.160.86", 6379,database=2,secret=Option("127001"))
-          // likesCount.collect().foreach( t => {r2.set(t(0), t(1).toString())})
+          val r2 = new RedisClient("54.245.160.86", 6379,database=2,secret=Option("127001"))
+          likesCount.collect().foreach( t => {r2.set(t(0), t(1).toString())})
           //System.gc()
-          likesCount.foreachPartition { p =>
-
-                      val r2 = new RedisClient("54.245.160.86", 6379, database=2, secret=Option("127001"))
-
-                        p.foreach(t => {
-                          if(t(1).toString().length > 15)
-                            r2.set(t(0), t(1))})
-
-                      r2.disconnect
-          }
 
                               }
 
@@ -184,19 +154,10 @@ object EngageStreaming {
                               .count()
 
 
-          // val r3 = new RedisClient("54.245.160.86", 6379,database=3,secret=Option("127001"))
-          // dislikesCount.collect().foreach( t => {r3.set(t(0), t(1).toString())})
+          val r3 = new RedisClient("54.245.160.86", 6379,database=3,secret=Option("127001"))
+          dislikesCount.collect().foreach( t => {r3.set(t(0), t(1).toString())})
           //System.gc()
-          dislikesCount.foreachPartition { p =>
 
-                      val r3 = new RedisClient("54.245.160.86", 6379, database=3, secret=Option("127001"))
-
-                        p.foreach(t => {
-                          if(t(1).toString().length > 15)
-                            r3.set(t(0), t(1))})
-
-                      r3.disconnect
-          }
                               }
     //
       // DStream for topic4, starts, with sliding window 10, 10
@@ -215,20 +176,11 @@ object EngageStreaming {
 
 
 
-          // val r4 = new RedisClient("54.245.160.86", 6379,database=4,secret=Option("127001"))
-          // starts.collect().foreach( t => {r4.set(t(0), t(1))})
+          val r4 = new RedisClient("54.245.160.86", 6379,database=4,secret=Option("127001"))
+          starts.collect().foreach( t => {r4.set(t(0), t(1))})
           //starts.show()
           //System.gc()
-          starts.foreachPartition { p =>
 
-                      val r4 = new RedisClient("54.245.160.86", 6379, database=4, secret=Option("127001"))
-
-                        p.foreach(t => {
-                          if(t(1).toString().length > 15)
-                            r4.set(t(0), t(1))})
-
-                      r4.disconnect
-          }
                               }
     //
     // DStream for topic5, ends, with sliding window 10, 10
@@ -247,19 +199,10 @@ object EngageStreaming {
 
 
 
-        // val r5 = new RedisClient("54.245.160.86", 6379,database=5,secret=Option("127001"))
-        // endsCount.collect().foreach( t => {r5.set(t(0), t(1))})
+        val r5 = new RedisClient("54.245.160.86", 6379,database=5,secret=Option("127001"))
+        endsCount.collect().foreach( t => {r5.set(t(0), t(1))})
         //System.gc()
-        endsCount.foreachPartition { p =>
 
-                    val r5 = new RedisClient("54.245.160.86", 6379, database=5, secret=Option("127001"))
-
-                      p.foreach(t => {
-                        if(t(1).toString().length > 15)
-                          r5.set(t(0), t(1))})
-
-                    r5.disconnect
-        }
                             }
 
       // DStream for topic6, plays, with sliding window 10, 10
@@ -284,18 +227,9 @@ object EngageStreaming {
 
           val playCount = rdd.toDF("id","playCount")
 
-          // val r6 = new RedisClient("54.245.160.86", 6379,database=6,secret=Option("127001"))
-          // playCount.collect().foreach( t => {r6.set(t(0).toString().stripPrefix("[").toString(), t(1))})
-          playCount.foreachPartition { p =>
+          val r6 = new RedisClient("54.245.160.86", 6379,database=6,secret=Option("127001"))
+          playCount.collect().foreach( t => {r6.set(t(0).toString().stripPrefix("[").toString(), t(1))})
 
-                      val r6 = new RedisClient("54.245.160.86", 6379, database=6, secret=Option("127001"))
-
-                        p.foreach(t => {
-                          if(t(1).toString().length > 15)
-                            r6.set(t(0), t(1))})
-
-                      r6.disconnect
-          }
 
                              }
     //
@@ -321,18 +255,9 @@ object EngageStreaming {
 
           val leaveCount = rdd.toDF("id","leaveCount")
 
-          // val r7 = new RedisClient("54.245.160.86", 6379, database=7,secret=Option("127001"))
-          // leaveCount.collect().foreach( t => {r7.set(t(0).toString().stripPrefix("[").toString(), t(1))})
-          leaveCount.foreachPartition { p =>
+          val r7 = new RedisClient("54.245.160.86", 6379, database=7,secret=Option("127001"))
+          leaveCount.collect().foreach( t => {r7.set(t(0).toString().stripPrefix("[").toString(), t(1))})
 
-                      val r7 = new RedisClient("54.245.160.86", 6379, database=7, secret=Option("127001"))
-
-                        p.foreach(t => {
-                          if(t(1).toString().length > 15)
-                            r7.set(t(0), t(1))})
-
-                      r7.disconnect
-          }
                                 }
 
 
