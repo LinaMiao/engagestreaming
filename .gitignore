@@ -8,4 +8,8 @@ Untitled copy.mov
 demoVideo.mov
 spark_streaming/src/main/scala/#clusterInfo.txt#
 spark_streaming/src/main/scala/.#clusterInfo.txt
+spark_streaming/src/main/scala/clusterInfo.txt
+#*#
 *~
+.gitignore~
+#.gitignore#
