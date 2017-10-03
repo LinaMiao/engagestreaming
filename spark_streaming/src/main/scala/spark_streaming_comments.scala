@@ -26,6 +26,7 @@ import java.util.Properties
 import scala.collection.JavaConverters._
 import scala.util.parsing.json._
 import scala.util.Random
+import scala.io.Source
 import org.apache.spark.sql.functions._
 import com.databricks.spark.corenlp.functions._
 
@@ -33,8 +34,15 @@ import com.databricks.spark.corenlp.functions._
 object EngageStreaming {
 
   def main(args: Array[String]) {
+    // read cluster information from file
+    val clusterInfo = Source.fromFile("clusterInfo.txt").getLines.toList
+    val kafkaBrokers = clusterInfo(0)
+    val sparkCheckpoint = clusterInfo(1)
+    val redisBrokers = clusterInfo.(2)
+    val redisPort = clusterInfo(3)
+    val redisPassword = clusterInfo(4)
+
     // topics from kafka
-    val brokers = "ec2-54-245-21-146.us-west-2.compute.amazonaws.com:9092"
     val topics = ("comments_topic", "like_topic", "dislike_topic", "start_topic", "end_topic", "play_topic","leave_topic")
     val topicsSet_1 = Set(topics._1)
     val topicsSet_2 = Set(topics._2)
@@ -44,7 +52,7 @@ object EngageStreaming {
     val topicsSet_6 = Set(topics._6)
     val topicsSet_7 = Set(topics._7)
 
-    // Create context with 10 second batch interval
+    // spark setups
     val sparkConf = new SparkConf().setAppName("engage")
     sparkConf.set("spark.streaming.concurrentJobs", "18")
     sparkConf.set("spark.sql.shuffle.partitions", "400")
@@ -52,12 +60,11 @@ object EngageStreaming {
     sparkConf.set("spark.driver.memory", "2g")
     sparkConf.set("spark.executor.memory", "2g")
 
-
+    // spark context with 10s microbatch
     val ssc = new StreamingContext(sparkConf, Seconds(10))
-    ssc.checkpoint("hdfs://ec2-54-245-160-86.us-west-2.compute.amazonaws.com:9000/tmp/spark_checkpoint")
-
+    ssc.checkpoint(sparkCheckpoint)
     // Create direct kafka stream with brokers and topics
-    val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers)
+    val kafkaParams = Map[String, String]("metadata.broker.list" -> kafkaBrokers)
 
 
     // Dstream for topic_1 - comments, with sliding window 60s, 60s
@@ -70,13 +77,13 @@ object EngageStreaming {
         import sqlContext.implicits._
 
         val nlp = rdd.map(_._2)
-                            .map(_.split("\\{"))
-                            .map(t => (t(0).toString().stripPrefix("[").dropRight(3).toString(), t(1).toString().split("user_id")(0)))
-                            .toDF("id", "comment_raw")
-                            .select('id, regexp_replace($"comment_raw", "[^A-Za-z?!.]+", " ").as('comment))
-                            .filter(not($"comment" === " "))
-                            .select('id, explode(ssplit('comment)).as('sen))
-                            .filter(not($"sen" === " "))
+                     .map(_.split("\\{"))
+                     .map(t => (t(0).toString().stripPrefix("[").dropRight(3).toString(), t(1).toString().split("user_id")(0)))
+                     .toDF("id", "comment_raw")
+                     .select('id, regexp_replace($"comment_raw", "[^A-Za-z?!.]+", " ").as('comment))
+                     .filter(not($"comment" === " "))
+                     .select('id, explode(ssplit('comment)).as('sen))
+                     .filter(not($"sen" === " "))
 
 
         // let's tokenize everything
@@ -84,9 +91,9 @@ object EngageStreaming {
                         .groupBy("id")
                         .agg(collect_list("tokens").as('tokens_collect))
 
-        val r1 = new RedisClient("54.245.160.86", 6379, database=1, secret=Option("127001"))
+        val r1 = new RedisClient(redisBrokers, redisPort, database=1, secret=Option(redisPassword))
         // update database only if content is not empty
-        token.collect().foreach( t => {if(t(1).toString().length > 15)
+        token.collect().foreach( t => {if(t(1).toString().length > 15) // t(1) comes as as string likes "wrappedarray()", len(wrappedarray()) == 15
                                           r1.set(t(0) + "_token", t(1))})
 
 
@@ -95,10 +102,10 @@ object EngageStreaming {
                             .map(t => (t(0).toString(), t(1).toString().split(" ").length))
                             .toDF("id", "len")
                             .select(col("len"))
-                            .map(_(0).asInstanceOf[Int]).reduce(_+_)
+                            .map(_(0).asInstanceOf[Int])
+                            .reduce(_+_)
 
         val prob:Double = if(tokenCount> 5000) 5000.0/tokenCount else 1
-
 
         val sent_score = nlp.map(row => {val rand = new scala.util.Random
                                         (row.getString(0),row.getString(1),rand.nextDouble())})
@@ -115,6 +122,7 @@ object EngageStreaming {
 
                            }
 
+
       // DStream for topic2, likes, with sliding window 10, 10
       val messages_2 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_2)
       val windowStream_2 = messages_1.window(Seconds(10), Seconds(10))
@@ -125,13 +133,13 @@ object EngageStreaming {
           import sqlContext.implicits._
 
           val likesCount  = rdd.map(_._2)
-                              .map(_.split(","))
-                              .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
-                              .toDF("id","likes")
-                              .groupBy("id")
-                              .count()
+                               .map(_.split(","))
+                               .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
+                               .toDF("id","likes")
+                               .groupBy("id")
+                               .count()
 
-          val r2 = new RedisClient("54.245.160.86", 6379,database=2,secret=Option("127001"))
+          val r2 = new RedisClient(redisBrokers, redisPort,database=2,secret=Option(redisPassword))
           likesCount.collect().foreach( t => {r2.set(t(0), t(1).toString())})
           //System.gc()
 
@@ -147,14 +155,14 @@ object EngageStreaming {
           import sqlContext.implicits._
 
           val dislikesCount = rdd.map(_._2)
-                              .map(_.split(","))
-                              .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
-                              .toDF("id","dislikes")
-                              .groupBy("id")
-                              .count()
+                                 .map(_.split(","))
+                                 .map(t => (t(0).toString().stripPrefix("[").toString(), 1))
+                                 .toDF("id","dislikes")
+                                 .groupBy("id")
+                                 .count()
 
 
-          val r3 = new RedisClient("54.245.160.86", 6379,database=3,secret=Option("127001"))
+          val r3 = new RedisClient(redisBrokers, redisPort,database=3,secret=Option(redisPassword))
           dislikesCount.collect().foreach( t => {r3.set(t(0), t(1).toString())})
           //System.gc()
 
@@ -170,19 +178,20 @@ object EngageStreaming {
           import sqlContext.implicits._
 
           val starts = rdd.map(_._2)
-                              .map(_.split(","))
-                              .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
-                              .toDF("id","content")
+                          .map(_.split(","))
+                          .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
+                          .toDF("id","content")
 
 
 
-          val r4 = new RedisClient("54.245.160.86", 6379,database=4,secret=Option("127001"))
+          val r4 = new RedisClient(redisBrokers, redisPort,database=4,secret=Option(redisPassword))
           starts.collect().foreach( t => {r4.set(t(0), t(1))})
           //starts.show()
           //System.gc()
 
                               }
-    //
+
+
     // DStream for topic5, ends, with sliding window 10, 10
     val messages_5 = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet_5)
     val windowStream_5 = messages_5.window(Seconds(10), Seconds(10))
@@ -193,13 +202,13 @@ object EngageStreaming {
         import sqlContext.implicits._
 
         val endsCount = rdd.map(_._2)
-                            .map(_.split(","))
-                            .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
-                            .toDF()
+                           .map(_.split(","))
+                           .map(t => (t(0).toString().stripPrefix("[").toString(), t(0).toString() + t(1).toString() + t(2).toString() + t(3).toString() + t(4).toString() + t(5).toString() + t(6).toString()))
+                           .toDF()
 
 
 
-        val r5 = new RedisClient("54.245.160.86", 6379,database=5,secret=Option("127001"))
+        val r5 = new RedisClient(redisBrokers, redisPort,database=5,secret=Option(redisPassword))
         endsCount.collect().foreach( t => {r5.set(t(0), t(1))})
         //System.gc()
 
@@ -227,7 +236,7 @@ object EngageStreaming {
 
           val playCount = rdd.toDF("id","playCount")
 
-          val r6 = new RedisClient("54.245.160.86", 6379,database=6,secret=Option("127001"))
+          val r6 = new RedisClient(redisBrokers, redisPort,database=6,secret=Option(redisPassword))
           playCount.collect().foreach( t => {r6.set(t(0).toString().stripPrefix("[").toString(), t(1))})
 
 
@@ -255,7 +264,7 @@ object EngageStreaming {
 
           val leaveCount = rdd.toDF("id","leaveCount")
 
-          val r7 = new RedisClient("54.245.160.86", 6379, database=7,secret=Option("127001"))
+          val r7 = new RedisClient(redisBrokers, redisPort, database=7,secret=Option(redisPassword))
           leaveCount.collect().foreach( t => {r7.set(t(0).toString().stripPrefix("[").toString(), t(1))})
 
                                 }
