@@ -23,4 +23,4 @@ Spark run on a cluster of one master (x4.large), 3 workers (x4.large), co-reside
 Flask run on a single node (x4.large).
 
 ## Demo
-Please visit [link]() for a short video of flask UI visualization.
+Please visit [link](bit.ly/engageDemoVideo) for a short video of flask UI visualization.
